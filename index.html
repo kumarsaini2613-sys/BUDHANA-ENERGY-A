@@ -30,13 +30,23 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px;borde
 <body>
 <header><h1>⚡ SUBSTATION ENERGY AUDIT PRO</h1><p>29 बिजलीघर · 33 KV Transmission · Transformer / Incomer / Outgoing Energy Balance</p></header>
 <main>
+<div class="card" id="cloudSetup">
+<h2>☁️ साझा ऑनलाइन सेविंग</h2>
+<p class="muted">एक बार डेटाबेस जोड़ने के बाद सभी मोबाइलों पर सभी बिजलीघरों का साझा डेटा खुलेगा। अभी स्थानीय सेविंग भी चालू रहेगी।</p>
+<div class="grid">
+<div><label>Supabase Project URL</label><input id="sbUrl" placeholder="https://xxxx.supabase.co"></div>
+<div><label>Supabase anon/public key</label><input id="sbKey" placeholder="eyJ..."></div>
+</div>
+<div class="toolbar"><button class="green" onclick="connectCloud()">क्लाउड जोड़ें / कनेक्ट करें</button><button class="secondary" onclick="pullCloud()">क्लाउड से रिफ्रेश करें</button><span class="pill" id="cloudStatus">क्लाउड सेट नहीं है</span></div>
+<p class="muted">यह साझा ऐप है: जिस व्यक्ति के पास ऐप लिंक होगा, वह डेटा देख और बदल सकेगा। सार्वजनिक लिंक साझा करने से पहले इस बात का ध्यान रखें।</p>
+</div>
 <div class="card" id="setup">
 <h2>बिजलीघर चुनें</h2><div class="muted">29 बिजलीघरों के नाम पहले से जोड़े गए हैं। हर बिजलीघर का डेटा अलग सेव होगा।</div>
 <div id="stationList"></div>
 </div>
 <div id="work" class="hidden">
 <div class="card">
-<div class="toolbar no-print"><button class="secondary" onclick="showList()">← बिजलीघर सूची</button><button onclick="saveAll()" class="green">डेटा सेव करें</button><button class="secondary" onclick="print()">रिपोर्ट / PDF</button><button class="secondary" onclick="exportCSV()">CSV डाउनलोड</button></div>
+<div class="toolbar no-print"><button class="secondary" onclick="showList()">← बिजलीघर सूची</button><button onclick="saveAll(true)" class="green" type="button">डेटा सेव करें</button><span id="saveStatus" class="pill" role="status" aria-live="polite">अभी सेव नहीं किया गया</span><button class="secondary" onclick="print()">रिपोर्ट / PDF</button><button class="secondary" onclick="exportCSV()">CSV डाउनलोड</button></div>
 <h2 id="stationTitle"></h2>
 <div class="grid">
 <div><label>रीडिंग अवधि / तारीख</label><input id="period" placeholder="जैसे 01-11-2026 से 30-11-2026" onchange="saveAll()"></div>
@@ -63,19 +73,77 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px;borde
 </div>
 <div class="card no-print">
 <h2>डेटा सुरक्षा</h2><div class="toolbar"><button class="secondary" onclick="backup()">बैकअप डाउनलोड करें</button><label class="secondary" style="padding:10px;border-radius:8px;display:inline-block">बैकअप वापस लाएँ <input type="file" accept="application/json" onchange="restore(event)" style="display:none"></label></div>
-<p class="muted">सेटिंग और रीडिंग इसी मोबाइल/ब्राउज़र में सेव रहती हैं। मोबाइल बदलने या ब्राउज़र डेटा साफ करने से पहले बैकअप डाउनलोड करें।</p>
+<p class="muted">हर बिजलीघर का मीटर नंबर, MF, रीडिंग और दोनों तारीखें इसी मोबाइल/ब्राउज़र में अपने-आप सेव रहती हैं। मीटर नंबर और MF बदलने के लिए “मीटर सेटिंग अनलॉक” करें। सभी बिजलीघरों का डेटा बैकअप में भी शामिल रहता है। मोबाइल बदलने या ब्राउज़र डेटा साफ करने से पहले बैकअप डाउनलोड करें।</p>
 </div>
 </div>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const names=["ALIPUR ATERNA","ATALI","VALLY","KURTHAL","ADAMPUR","GADI NOVABAD","BIRAL","PARASOLI","HABIBPUR","PHUGANA","SARNAWALI","DUNGAR","KHANPUR","RAISINGH MOHD","LUSANA","KARODA MAHAJAN","CHANDEDI","BUDHANA RURAL","MIDKALI","JAULA","KURALSI","SHORAM","SHAHDABBAR","SHAHPUR","KAKDA","BHORA KALAN","KHARAD","KURAWA","BUDHANA TOWN"];
-const KEY="sea29_v1";let all=JSON.parse(localStorage.getItem(KEY)||"{}"),current=-1,unlocked=false;
+const KEY="sea29_v1";
+const CLOUD_CFG_KEY="sea29_cloud_cfg";
+let sb=null, cloudReady=false;
+function cloudCfg(){try{return JSON.parse(localStorage.getItem(CLOUD_CFG_KEY)||"null")}catch{return null}}
+function setCloudStatus(s){const e=document.getElementById("cloudStatus");if(e)e.textContent=s}
+function initCloud(){
+  const c=cloudCfg();
+  if(c){document.getElementById("sbUrl").value=c.url||"";document.getElementById("sbKey").value=c.key||"";try{if(window.supabase?.createClient){sb=window.supabase.createClient(c.url,c.key);cloudReady=true;setCloudStatus("क्लाउड कॉन्फ़िगरेशन सेव है");}}catch(e){cloudReady=false}}
+}
+async function connectCloud(){
+  const url=document.getElementById("sbUrl").value.trim(), key=document.getElementById("sbKey").value.trim();
+  if(!url||!key){alert("Project URL और anon/public key दोनों भरें।");return}
+  try{
+    const client=window.supabase.createClient(url,key);
+    const {data,error}=await client.from("station_data").select("station_id,data").limit(1);
+    if(error)throw error;
+    sb=client;cloudReady=true;localStorage.setItem(CLOUD_CFG_KEY,JSON.stringify({url,key}));
+    setCloudStatus("✓ क्लाउड कनेक्ट हो गया");
+    await pullCloud();
+    alert("क्लाउड कनेक्ट हो गया। सभी बिजलीघरों का साझा डेटा लोड कर लिया गया है।");
+    renderList();
+  }catch(e){cloudReady=false;setCloudStatus("कनेक्शन नहीं हुआ");alert("कनेक्शन असफल: "+(e.message||e))}
+}
+async function pullCloud(){
+  if(!cloudReady||!sb)return;
+  setCloudStatus("क्लाउड से डेटा लोड हो रहा है…");
+  const {data,error}=await sb.from("station_data").select("station_id,data");
+  if(error){setCloudStatus("क्लाउड पढ़ने में समस्या");console.error(error);return}
+  (data||[]).forEach(row=>{const i=Number(row.station_id);if(Number.isInteger(i)&&i>=0&&i<names.length&&row.data)all[i]=row.data});
+  try{localStorage.setItem(KEY,JSON.stringify(all))}catch(e){}
+  setCloudStatus("✓ ऑनलाइन — साझा डेटा लोड");
+}
+async function pushStationCloud(i){
+  if(!cloudReady||!sb)return;
+  setCloudStatus("क्लाउड में सेव हो रहा है…");
+  const {error}=await sb.from("station_data").upsert({station_id:String(i),data:all[i],updated_at:new Date().toISOString()},{onConflict:"station_id"});
+  if(error){setCloudStatus("ऑनलाइन सेव नहीं हुआ");console.error(error);return}
+  setCloudStatus("✓ मोबाइल और क्लाउड दोनों में सेव");
+}
+let all={};
+try { all=JSON.parse(localStorage.getItem(KEY)||"{}")||{}; }
+catch(e) { all={}; }
+let current=-1,unlocked=false;
 function blank(){return {period:"",txUnit:"MWh",txReading:"",transformers:[]}}
 function getData(){if(!all[current])all[current]=blank();return all[current]}
-function persist(){localStorage.setItem(KEY,JSON.stringify(all))}
+function persist(){
+  const status=document.getElementById("saveStatus");
+  try {
+    const data=JSON.stringify(all);
+    localStorage.setItem(KEY,data);
+    const check=localStorage.getItem(KEY);
+    if(check!==data) throw new Error("सेव की पुष्टि नहीं हो पाई");
+    if(status) status.textContent="✓ इस मोबाइल में सेव हो गया";
+    if(cloudReady && current>=0) pushStationCloud(current);
+    return true;
+  } catch(e) {
+    if(status) status.textContent="सेव नहीं हुआ — बैकअप डाउनलोड करें";
+    console.error("Save failed:",e);
+    return false;
+  }
+}
 function showList(){document.getElementById("setup").classList.remove("hidden");document.getElementById("work").classList.add("hidden");renderList()}
 function renderList(){let el=document.getElementById("stationList");el.innerHTML=names.map((n,i)=>`<button class="substation" onclick="openStation(${i})"><span>${i+1}. ${n}</span><span>खोलें →</span></button>`).join("")}
-function openStation(i){current=i;if(!all[i])all[i]=blank();document.getElementById("setup").classList.add("hidden");document.getElementById("work").classList.remove("hidden");document.getElementById("stationTitle").textContent=(i+1)+". "+names[i];let d=getData();document.getElementById("period").value=d.period||"";document.getElementById("txUnit").value=d.txUnit||"MWh";document.getElementById("txReading").value=d.txReading||"";render();updateLock()}
+function openStation(i){current=i;if(!all[i])all[i]=blank();document.getElementById("setup").classList.add("hidden");document.getElementById("work").classList.remove("hidden");document.getElementById("stationTitle").textContent=(i+1)+". "+names[i];let d=getData();document.getElementById("period").value=d.period||"";document.getElementById("txUnit").value=d.txUnit||"MWh";document.getElementById("txReading").value=d.txReading||"";render();updateLock();const ss=document.getElementById("saveStatus");if(ss)ss.textContent="पुराना सेव डेटा लोड हुआ"}
 function uid(){return Math.random().toString(36).slice(2,10)}
 function addTransformer(){getData().transformers.push({id:uid(),name:"Transformer "+(getData().transformers.length+1),capacity:"",incomers:[newIncomer()]});saveAll();render()}
 function newIncomer(){return {id:uid(),name:"Incomer",meter:"",unit:"MWh",mf:"1",prev:"",curr:"",feeders:[]}}
@@ -96,19 +164,34 @@ ${inc.feeders.map((f,fi)=>`<div class="reading"><h3>Outgoing Feeder ${fi+1}</h3>
 <div class="muted">Incomer Consumption: <b>${energy(inc).toFixed(6)} MWh</b> · Outgoing: <b>${inc.feeders.reduce((s,f)=>s+energy(f),0).toFixed(6)} MWh</b> · अंतर: <b>${(energy(inc)-inc.feeders.reduce((s,f)=>s+energy(f),0)).toFixed(6)} MWh</b></div>
 </div>`).join("")}
 </div>`).join("")||'<p class="muted">अभी कोई ट्रांसफॉर्मर नहीं है। “ट्रांसफॉर्मर जोड़ें” दबाएँ।</p>';calc()}
-function meterFields(x,ti,ii,type,fi){let path=type==="incomer"?`getData().transformers[${ti}].incomers[${ii}]`:`getData().transformers[${ti}].incomers[${ii}].feeders[${fi}]`;return `<div class="grid"><div><label>नाम</label><input value="${esc(x.name)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'name',this.value)"></div><div><label>मीटर नंबर</label><input value="${esc(x.meter)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'meter',this.value)"></div><div><label>मीटर यूनिट</label><select ${unlocked?"":"disabled"} onchange="setVal(${path},'unit',this.value)"><option ${x.unit==="MWh"?"selected":""}>MWh</option><option ${x.unit==="KWh"?"selected":""}>KWh</option></select></div><div><label>MF</label><input type="number" step="any" value="${esc(x.mf)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'mf',this.value)"></div><div><label>पिछली रीडिंग</label><input type="number" step="any" value="${esc(x.prev)}" oninput="setVal(${path},'prev',this.value)"></div><div><label>वर्तमान रीडिंग</label><input type="number" step="any" value="${esc(x.curr)}" oninput="setVal(${path},'curr',this.value)"></div></div><div class="muted">Consumption: <b>${energy(x).toFixed(6)} MWh</b></div>`}
+function meterFields(x,ti,ii,type,fi){let path=type==="incomer"?`getData().transformers[${ti}].incomers[${ii}]`:`getData().transformers[${ti}].incomers[${ii}].feeders[${fi}]`;return `<div class="grid"><div><label>नाम</label><input value="${esc(x.name)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'name',this.value)"></div><div><label>मीटर नंबर</label><input value="${esc(x.meter)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'meter',this.value)"></div><div><label>मीटर यूनिट</label><select ${unlocked?"":"disabled"} onchange="setVal(${path},'unit',this.value)"><option ${x.unit==="MWh"?"selected":""}>MWh</option><option ${x.unit==="KWh"?"selected":""}>KWh</option></select></div><div><label>MF</label><input type="number" step="any" value="${esc(x.mf)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'mf',this.value)"></div><div><label>पिछली रीडिंग की तारीख</label><input type="date" value="${esc(x.prevDate||"")}" onchange="setVal(${path},'prevDate',this.value)"></div><div><label>पिछली रीडिंग</label><input type="number" step="any" value="${esc(x.prev)}" oninput="setVal(${path},'prev',this.value)"></div><div><label>वर्तमान रीडिंग की तारीख</label><input type="date" value="${esc(x.currDate||"")}" onchange="setVal(${path},'currDate',this.value)"></div><div><label>वर्तमान रीडिंग</label><input type="number" step="any" value="${esc(x.curr)}" oninput="setVal(${path},'curr',this.value)"></div></div><div class="muted">Consumption: <b>${energy(x).toFixed(6)} MWh</b></div>`}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function removeT(id){if(confirm("यह Transformer हटाएँ?")){let d=getData();d.transformers=d.transformers.filter(t=>t.id!==id);saveAll();render()}}
 function removeI(tid,iid){if(confirm("यह Incomer और उसके feeders हटाएँ?")){let t=getData().transformers.find(x=>x.id===tid);t.incomers=t.incomers.filter(i=>i.id!==iid);saveAll();render()}}
 function removeF(tid,iid,fid){let i=getData().transformers.find(x=>x.id===tid).incomers.find(x=>x.id===iid);i.feeders=i.feeders.filter(f=>f.id!==fid);saveAll();render()}
 function toggleConfig(){unlocked=!unlocked;updateLock();render()}
 function updateLock(){document.getElementById("lockStatus").textContent=unlocked?"मीटर सेटिंग अनलॉक है":"मीटर सेटिंग लॉक है"}
-function saveAll(){if(current<0)return;let d=getData();d.period=document.getElementById("period").value;d.txUnit=document.getElementById("txUnit").value;d.txReading=document.getElementById("txReading").value;persist();calc()}
+function saveAll(showMessage=false){
+  if(current<0){
+    if(showMessage) alert("पहले बिजलीघर चुनें।");
+    return false;
+  }
+  let d=getData();
+  d.period=document.getElementById("period").value;
+  d.txUnit=document.getElementById("txUnit").value;
+  d.txReading=document.getElementById("txReading").value;
+  const ok=persist();
+  calc();
+  if(showMessage) alert(ok ? "डेटा सफलतापूर्वक इस मोबाइल/ब्राउज़र में सेव हो गया।" : "डेटा सेव नहीं हो पाया। कृपया 'बैकअप डाउनलोड करें' से बैकअप लें और ब्राउज़र की स्टोरेज अनुमति जाँचें।");
+  return ok;
+}
 function calc(){if(current<0)return;let d=getData(),ins=0,outs=0,rows=[];d.transformers.forEach(t=>t.incomers.forEach(i=>{let ie=energy(i),oe=i.feeders.reduce((s,f)=>s+energy(f),0);ins+=ie;outs+=oe;rows.push([t.name,i.name,ie,oe,ie-oe])}));let tx=txEnergy(d);document.getElementById("txTotal").textContent=tx.toFixed(6)+" MWh";document.getElementById("inTotal").textContent=ins.toFixed(6)+" MWh";document.getElementById("outTotal").textContent=outs.toFixed(6)+" MWh";document.getElementById("txDiff").textContent=(tx-ins).toFixed(6)+" MWh";document.getElementById("ioDiff").textContent=(ins-outs).toFixed(6)+" MWh";document.getElementById("balanceTable").innerHTML="<table><tr><th>Transformer</th><th>Incomer</th><th>Incomer MWh</th><th>Outgoing MWh</th><th>अंतर MWh</th></tr>"+rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${r[2].toFixed(6)}</td><td>${r[3].toFixed(6)}</td><td>${r[4].toFixed(6)}</td></tr>`).join("")+"</table>"}
-function exportCSV(){let d=getData(),rows=[["Substation",names[current]],["Period",d.period],["33KV transmission",txEnergy(d)+" MWh"],[],["Transformer","Incomer/Feeder","Meter No","Unit","MF","Previous","Current","Consumption MWh"]];d.transformers.forEach(t=>t.incomers.forEach(i=>{rows.push([t.name,i.name,i.meter,i.unit,i.mf,i.prev,i.curr,energy(i)]);i.feeders.forEach(f=>rows.push([t.name,f.name,f.meter,f.unit,f.mf,f.prev,f.curr,energy(f)]))}));let csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");download(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),names[current].replaceAll(" ","_")+"_energy.csv")}
+function exportCSV(){let d=getData(),rows=[["Substation",names[current]],["Period",d.period],["33KV transmission",txEnergy(d)+" MWh"],[],["Transformer","Incomer/Feeder","Meter No","Unit","MF","Previous Date","Previous Reading","Current Date","Current Reading","Consumption MWh"]];d.transformers.forEach(t=>t.incomers.forEach(i=>{rows.push([t.name,i.name,i.meter,i.unit,i.mf,i.prevDate||"",i.prev,i.currDate||"",i.curr,energy(i)]);i.feeders.forEach(f=>rows.push([t.name,f.name,f.meter,f.unit,f.mf,f.prevDate||"",f.prev,f.currDate||"",f.curr,energy(f)]))}));let csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");download(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),names[current].replaceAll(" ","_")+"_energy.csv")}
 function backup(){download(new Blob([JSON.stringify(all,null,2)],{type:"application/json"}),"substation_energy_backup.json")}
 function restore(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{all=JSON.parse(r.result);persist();alert("बैकअप सफलतापूर्वक वापस आ गया।");if(current>=0)openStation(current);else renderList()}catch{alert("यह बैकअप फाइल सही नहीं है।")}};r.readAsText(f)}
 function download(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
 renderList();
+initCloud();
+if(cloudReady) pullCloud();
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
 </script></body></html>

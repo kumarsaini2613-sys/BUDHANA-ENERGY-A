@@ -1,0 +1,10 @@
+{
+  "name": "Substation Energy Audit Pro",
+  "short_name": "Energy Audit",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f6f8",
+  "theme_color": "#123b55",
+  "icons": []
+}
