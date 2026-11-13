@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#123b55"><title>Substation Energy Audit Pro – 29</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--navy:#123b55;--blue:#176b87;--bg:#f2f6f8;--line:#d6e0e6;--green:#147d55;--red:#a33}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:15px system-ui,-apple-system,Segoe UI,sans-serif;color:#17232c}
+header{background:linear-gradient(120deg,#123b55,#176b87);color:white;padding:18px 15px}
+header h1{font-size:21px;margin:0 0 5px}header p{margin:0;font-size:13px;opacity:.9}
+main{max-width:1100px;margin:auto;padding:12px}.card{background:white;border:1px solid var(--line);border-radius:13px;padding:14px;margin:12px 0;box-shadow:0 2px 8px #15364b0b}
+h2{font-size:18px;margin:0 0 12px;color:var(--navy)}h3{font-size:16px;margin:8px 0;color:var(--blue)}
+label{display:block;font-size:12px;font-weight:650;color:#52636d;margin:7px 0 4px}
+input,select{width:100%;padding:10px;border:1px solid #c8d5dc;border-radius:8px;font:inherit;background:white;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px}
+button{border:0;border-radius:8px;padding:10px 13px;background:var(--blue);color:white;font-weight:650;font-size:14px;margin:4px 3px 4px 0}
+button.secondary{background:#e7eff3;color:#17465b}button.danger{background:#a33}button.green{background:var(--green)}
+.toolbar{display:flex;flex-wrap:wrap;gap:4px}.muted{font-size:12px;color:#60717b}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#e6f1f5;color:#17465b;font-size:12px}
+.substation{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;background:#eaf2f6;color:#123b55;margin:4px 0;padding:13px}
+.substation.active{background:#123b55;color:white}.section{border:1px solid var(--line);border-radius:10px;padding:11px;margin:10px 0;background:#fbfdfe}
+.reading{background:#f7fafb;border:1px solid var(--line);border-radius:9px;padding:10px;margin:8px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{background:#f1f6f8;padding:11px;border-radius:9px}.stat b{display:block;font-size:19px;color:var(--navy);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:8px;border-bottom:1px solid var(--line);text-align:right}td:first-child,th:first-child{text-align:left}
+.tablewrap{overflow:auto}.hidden{display:none}.lock{color:#147d55;font-size:12px}
+@media(max-width:520px){main{padding:8px}.card{padding:11px}header h1{font-size:18px}.toolbar button{flex:1}}
+@media print{body{background:white}header,.toolbar,.no-print,#setup,#stationList{display:none!important}.card,.section{box-shadow:none;break-inside:avoid}main{max-width:none;padding:0}}
+</style></head>
+<body>
+<header><h1>⚡ SUBSTATION ENERGY AUDIT PRO</h1><p>29 बिजलीघर · 33 KV Transmission · Transformer / Incomer / Outgoing Energy Balance</p></header>
+<main>
+<div class="card" id="setup">
+<h2>बिजलीघर चुनें</h2><div class="muted">29 बिजलीघरों के नाम पहले से जोड़े गए हैं। हर बिजलीघर का डेटा अलग सेव होगा।</div>
+<div id="stationList"></div>
+</div>
+<div id="work" class="hidden">
+<div class="card">
+<div class="toolbar no-print"><button class="secondary" onclick="showList()">← बिजलीघर सूची</button><button onclick="saveAll()" class="green">डेटा सेव करें</button><button class="secondary" onclick="print()">रिपोर्ट / PDF</button><button class="secondary" onclick="exportCSV()">CSV डाउनलोड</button></div>
+<h2 id="stationTitle"></h2>
+<div class="grid">
+<div><label>रीडिंग अवधि / तारीख</label><input id="period" placeholder="जैसे 01-11-2026 से 30-11-2026" onchange="saveAll()"></div>
+<div><label>33 KV ट्रांसमिशन एनर्जी की यूनिट</label><select id="txUnit" onchange="saveAll()"><option>MWh</option><option>KWh</option></select></div>
+<div><label>33 KV ट्रांसमिशन – एक रीडिंग</label><input id="txReading" type="number" step="any" placeholder="एनर्जी दर्ज करें" oninput="saveAll()"></div>
+</div>
+<p class="muted">33 KV लाइन में केवल एक एनर्जी रीडिंग दर्ज होगी। इस रीडिंग पर पिछली/वर्तमान रीडिंग या MF लागू नहीं है।</p>
+</div>
+<div class="card">
+<h2>ट्रांसफॉर्मर, इनकमर और आउटगोइंग फीडर</h2>
+<div class="toolbar no-print"><button onclick="addTransformer()">＋ ट्रांसफॉर्मर जोड़ें</button><button class="secondary" onclick="toggleConfig()">मीटर सेटिंग लॉक / अनलॉक</button><span id="lockStatus" class="lock">मीटर सेटिंग लॉक है</span></div>
+<div id="transformerArea"></div>
+</div>
+<div class="card">
+<h2>📊 बिजलीघर का एनर्जी बैलेंस</h2>
+<div class="stats">
+<div class="stat">33 KV Transmission<b id="txTotal">0.000 MWh</b></div>
+<div class="stat">कुल Incomer<b id="inTotal">0.000 MWh</b></div>
+<div class="stat">कुल Outgoing<b id="outTotal">0.000 MWh</b></div>
+<div class="stat">Transmission − Incomer<b id="txDiff">0.000 MWh</b></div>
+<div class="stat">Incomer − Outgoing<b id="ioDiff">0.000 MWh</b></div>
+</div><p class="muted">सभी परिणाम MWh में दिखाए जाते हैं। KWh रीडिंग को अपने आप 1,000 से भाग देकर MWh में बदला जाता है।</p>
+<div id="balanceTable" class="tablewrap"></div>
+</div>
+<div class="card no-print">
+<h2>डेटा सुरक्षा</h2><div class="toolbar"><button class="secondary" onclick="backup()">बैकअप डाउनलोड करें</button><label class="secondary" style="padding:10px;border-radius:8px;display:inline-block">बैकअप वापस लाएँ <input type="file" accept="application/json" onchange="restore(event)" style="display:none"></label></div>
+<p class="muted">सेटिंग और रीडिंग इसी मोबाइल/ब्राउज़र में सेव रहती हैं। मोबाइल बदलने या ब्राउज़र डेटा साफ करने से पहले बैकअप डाउनलोड करें।</p>
+</div>
+</div>
+</main>
+<script>
+const names=["ALIPUR ATERNA","ATALI","VALLY","KURTHAL","ADAMPUR","GADI NOVABAD","BIRAL","PARASOLI","HABIBPUR","PHUGANA","SARNAWALI","DUNGAR","KHANPUR","RAISINGH MOHD","LUSANA","KARODA MAHAJAN","CHANDEDI","BUDHANA RURAL","MIDKALI","JAULA","KURALSI","SHORAM","SHAHDABBAR","SHAHPUR","KAKDA","BHORA KALAN","KHARAD","KURAWA","BUDHANA TOWN"];
+const KEY="sea29_v1";let all=JSON.parse(localStorage.getItem(KEY)||"{}"),current=-1,unlocked=false;
+function blank(){return {period:"",txUnit:"MWh",txReading:"",transformers:[]}}
+function getData(){if(!all[current])all[current]=blank();return all[current]}
+function persist(){localStorage.setItem(KEY,JSON.stringify(all))}
+function showList(){document.getElementById("setup").classList.remove("hidden");document.getElementById("work").classList.add("hidden");renderList()}
+function renderList(){let el=document.getElementById("stationList");el.innerHTML=names.map((n,i)=>`<button class="substation" onclick="openStation(${i})"><span>${i+1}. ${n}</span><span>खोलें →</span></button>`).join("")}
+function openStation(i){current=i;if(!all[i])all[i]=blank();document.getElementById("setup").classList.add("hidden");document.getElementById("work").classList.remove("hidden");document.getElementById("stationTitle").textContent=(i+1)+". "+names[i];let d=getData();document.getElementById("period").value=d.period||"";document.getElementById("txUnit").value=d.txUnit||"MWh";document.getElementById("txReading").value=d.txReading||"";render();updateLock()}
+function uid(){return Math.random().toString(36).slice(2,10)}
+function addTransformer(){getData().transformers.push({id:uid(),name:"Transformer "+(getData().transformers.length+1),capacity:"",incomers:[newIncomer()]});saveAll();render()}
+function newIncomer(){return {id:uid(),name:"Incomer",meter:"",unit:"MWh",mf:"1",prev:"",curr:"",feeders:[]}}
+function addIncomer(tid){let t=getData().transformers.find(x=>x.id===tid);t.incomers.push(newIncomer());saveAll();render()}
+function addFeeder(tid,iid){let t=getData().transformers.find(x=>x.id===tid),inc=t.incomers.find(x=>x.id===iid);inc.feeders.push({id:uid(),name:"Outgoing Feeder "+(inc.feeders.length+1),meter:"",unit:"MWh",mf:"1",prev:"",curr:""});saveAll();render()}
+function setVal(obj,key,val){obj[key]=val;saveAll();calc()}
+function val(v){return v===""||v===null?0:Number(v)||0}
+function mwh(v,u){return u==="KWh"?v/1000:v}
+function energy(x){return mwh((val(x.curr)-val(x.prev))*val(x.mf),x.unit)}
+function txEnergy(d){return mwh(val(d.txReading),d.txUnit)}
+function render(){let d=getData(),root=document.getElementById("transformerArea");root.innerHTML=d.transformers.map((t,ti)=>`
+<div class="section"><h3>🔌 ${esc(t.name||"Transformer")}</h3>
+<div class="grid"><div><label>Transformer नाम</label><input value="${esc(t.name)}" ${unlocked?"":"disabled"} onchange="setVal(getData().transformers[${ti}],'name',this.value)"></div><div><label>क्षमता (MVA)</label><input value="${esc(t.capacity)}" ${unlocked?"":"disabled"} onchange="setVal(getData().transformers[${ti}],'capacity',this.value)"></div></div>
+<div class="toolbar no-print"><button class="secondary" onclick="addIncomer('${t.id}')">＋ Incomer जोड़ें</button><button class="danger" onclick="removeT('${t.id}')">Transformer हटाएँ</button></div>
+${t.incomers.map((inc,ii)=>`<div class="reading"><h3>Incomer ${ii+1}</h3>${meterFields(inc,ti,ii,"incomer")}
+<div class="toolbar no-print"><button class="secondary" onclick="addFeeder('${t.id}','${inc.id}')">＋ Outgoing Feeder जोड़ें</button><button class="danger" onclick="removeI('${t.id}','${inc.id}')">Incomer हटाएँ</button></div>
+${inc.feeders.map((f,fi)=>`<div class="reading"><h3>Outgoing Feeder ${fi+1}</h3>${meterFields(f,ti,ii,"feeder",fi)}<div class="muted">Consumption: <b>${energy(f).toFixed(6)} MWh</b></div><button class="danger no-print" onclick="removeF('${t.id}','${inc.id}','${f.id}')">फीडर हटाएँ</button></div>`).join("")}
+<div class="muted">Incomer Consumption: <b>${energy(inc).toFixed(6)} MWh</b> · Outgoing: <b>${inc.feeders.reduce((s,f)=>s+energy(f),0).toFixed(6)} MWh</b> · अंतर: <b>${(energy(inc)-inc.feeders.reduce((s,f)=>s+energy(f),0)).toFixed(6)} MWh</b></div>
+</div>`).join("")}
+</div>`).join("")||'<p class="muted">अभी कोई ट्रांसफॉर्मर नहीं है। “ट्रांसफॉर्मर जोड़ें” दबाएँ।</p>';calc()}
+function meterFields(x,ti,ii,type,fi){let path=type==="incomer"?`getData().transformers[${ti}].incomers[${ii}]`:`getData().transformers[${ti}].incomers[${ii}].feeders[${fi}]`;return `<div class="grid"><div><label>नाम</label><input value="${esc(x.name)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'name',this.value)"></div><div><label>मीटर नंबर</label><input value="${esc(x.meter)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'meter',this.value)"></div><div><label>मीटर यूनिट</label><select ${unlocked?"":"disabled"} onchange="setVal(${path},'unit',this.value)"><option ${x.unit==="MWh"?"selected":""}>MWh</option><option ${x.unit==="KWh"?"selected":""}>KWh</option></select></div><div><label>MF</label><input type="number" step="any" value="${esc(x.mf)}" ${unlocked?"":"disabled"} onchange="setVal(${path},'mf',this.value)"></div><div><label>पिछली रीडिंग</label><input type="number" step="any" value="${esc(x.prev)}" oninput="setVal(${path},'prev',this.value)"></div><div><label>वर्तमान रीडिंग</label><input type="number" step="any" value="${esc(x.curr)}" oninput="setVal(${path},'curr',this.value)"></div></div><div class="muted">Consumption: <b>${energy(x).toFixed(6)} MWh</b></div>`}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function removeT(id){if(confirm("यह Transformer हटाएँ?")){let d=getData();d.transformers=d.transformers.filter(t=>t.id!==id);saveAll();render()}}
+function removeI(tid,iid){if(confirm("यह Incomer और उसके feeders हटाएँ?")){let t=getData().transformers.find(x=>x.id===tid);t.incomers=t.incomers.filter(i=>i.id!==iid);saveAll();render()}}
+function removeF(tid,iid,fid){let i=getData().transformers.find(x=>x.id===tid).incomers.find(x=>x.id===iid);i.feeders=i.feeders.filter(f=>f.id!==fid);saveAll();render()}
+function toggleConfig(){unlocked=!unlocked;updateLock();render()}
+function updateLock(){document.getElementById("lockStatus").textContent=unlocked?"मीटर सेटिंग अनलॉक है":"मीटर सेटिंग लॉक है"}
+function saveAll(){if(current<0)return;let d=getData();d.period=document.getElementById("period").value;d.txUnit=document.getElementById("txUnit").value;d.txReading=document.getElementById("txReading").value;persist();calc()}
+function calc(){if(current<0)return;let d=getData(),ins=0,outs=0,rows=[];d.transformers.forEach(t=>t.incomers.forEach(i=>{let ie=energy(i),oe=i.feeders.reduce((s,f)=>s+energy(f),0);ins+=ie;outs+=oe;rows.push([t.name,i.name,ie,oe,ie-oe])}));let tx=txEnergy(d);document.getElementById("txTotal").textContent=tx.toFixed(6)+" MWh";document.getElementById("inTotal").textContent=ins.toFixed(6)+" MWh";document.getElementById("outTotal").textContent=outs.toFixed(6)+" MWh";document.getElementById("txDiff").textContent=(tx-ins).toFixed(6)+" MWh";document.getElementById("ioDiff").textContent=(ins-outs).toFixed(6)+" MWh";document.getElementById("balanceTable").innerHTML="<table><tr><th>Transformer</th><th>Incomer</th><th>Incomer MWh</th><th>Outgoing MWh</th><th>अंतर MWh</th></tr>"+rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${r[2].toFixed(6)}</td><td>${r[3].toFixed(6)}</td><td>${r[4].toFixed(6)}</td></tr>`).join("")+"</table>"}
+function exportCSV(){let d=getData(),rows=[["Substation",names[current]],["Period",d.period],["33KV transmission",txEnergy(d)+" MWh"],[],["Transformer","Incomer/Feeder","Meter No","Unit","MF","Previous","Current","Consumption MWh"]];d.transformers.forEach(t=>t.incomers.forEach(i=>{rows.push([t.name,i.name,i.meter,i.unit,i.mf,i.prev,i.curr,energy(i)]);i.feeders.forEach(f=>rows.push([t.name,f.name,f.meter,f.unit,f.mf,f.prev,f.curr,energy(f)]))}));let csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");download(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),names[current].replaceAll(" ","_")+"_energy.csv")}
+function backup(){download(new Blob([JSON.stringify(all,null,2)],{type:"application/json"}),"substation_energy_backup.json")}
+function restore(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{all=JSON.parse(r.result);persist();alert("बैकअप सफलतापूर्वक वापस आ गया।");if(current>=0)openStation(current);else renderList()}catch{alert("यह बैकअप फाइल सही नहीं है।")}};r.readAsText(f)}
+function download(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+renderList();
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script></body></html>
